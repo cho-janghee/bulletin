@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <title>간단 게시판 예제</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .post { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .btn-group button { margin-right: 5px; }
+        .edit-input { display: block; margin-bottom: 5px; width: 100%; }
+        .edit-actions { margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <h1>간단 게시판 예제</h1>
+
+    <!-- 글쓰기 폼 -->
+    <div id="writeForm">
+        <div class="title-row">
+            <input type="text" id="titleInput" placeholder="제목을 입력하세요" />
+            <input type="text" id="kategorieInput" placeholder="분류를 입력하세요" />
+        </div>
+        <textarea id="contentInput" rows="5" placeholder="내용을 입력하세요"></textarea>
+        <button id="writeBtn">글 쓰기</button>
+        <hr/>
+    </div>
+
+    <!-- 게시글 목록 -->
+    <div id="board"></div>
+
+    <script>
+    // 1) DOM 요소 가져오기
+    const kategorieInput = document.getElementById('kategorieInput');
+    const titleInput     = document.getElementById('titleInput');
+    const contentInput   = document.getElementById('contentInput');
+    const writeBtn       = document.getElementById('writeBtn');
+    const board          = document.getElementById('board');
+
+    // 2) 서버에서 모든 게시글을 가져와서 렌더링
+    async function fetchAndRenderPosts() {
+        try {
+            const res = await fetch('/api/posts');
+            if (!res.ok) throw new Error('게시글을 불러오지 못했습니다.');
+            const posts = await res.json();
+            renderPosts(posts);
+        } catch (err) {
+            console.error(err);
+            alert('게시글 로드 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 3) 게시글 렌더링
+    function renderPosts(posts) {
+        board.innerHTML = '';
+        posts.forEach(post => {
+            const postDiv = document.createElement('div');
+            postDiv.className = 'post';
+            postDiv.dataset.id = post.id;
+
+            const titleEl = document.createElement('h3');
+            titleEl.textContent = post.title;
+            const kategorieEl = document.createElement('h4');
+            kategorieEl.textContent = `분류: ${post.kategorie}`;
+            const contentEl = document.createElement('p');
+            contentEl.textContent = post.content;
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'btn-group';
+            const editBtn = document.createElement('button');
+            editBtn.textContent = '수정';
+            editBtn.addEventListener('click', () => openEditForm(post.id));
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '삭제';
+            deleteBtn.addEventListener('click', () => deletePost(post.id));
+            btnGroup.append(editBtn, deleteBtn);
+
+            postDiv.append(titleEl, kategorieEl, contentEl, btnGroup);
+            board.appendChild(postDiv);
+        });
+    }
+
+    // 4) 게시글 작성 (POST)
+    writeBtn.addEventListener('click', async () => {
+        const title = titleInput.value.trim();
+        const kategorie = kategorieInput.value.trim();
+        const content = contentInput.value.trim();
+
+        if (!title) { alert('제목을 입력하세요.'); return; }
+        if (!kategorie) { alert('분류를 입력하세요.'); return; }
+
+        try {
+            const res = await fetch('/api/posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, kategorie, content })
+            });
+            if (!res.ok) throw new Error('등록 실패');
+            titleInput.value = '';
+            kategorieInput.value = '';
+            contentInput.value = '';
+            await fetchAndRenderPosts();
+        } catch (err) {
+            console.error(err);
+            alert('게시글 등록 중 오류가 발생했습니다.');
+        }
+    });
+
+    // 5) 삭제 (DELETE)
+    async function deletePost(id) {
+        if (!confirm('정말 이 글을 삭제하시겠습니까?')) return;
+        try {
+            const res = await fetch(`/api/posts/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('삭제 실패');
+            await fetchAndRenderPosts();
+        } catch (err) {
+            console.error(err);
+            alert('게시글 삭제 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 6) 수정 폼 열기
+    function openEditForm(id) {
+        const existing = document.querySelector('.post .edit-wrapper');
+        if (existing) {
+            existing.remove();
+            fetchAndRenderPosts();
+        }
+
+        const postDiv = document.querySelector(`.post[data-id="${id}"]`);
+        if (!postDiv) return;
+
+        fetch(`/api/posts/${id}`)
+            .then(res => res.ok ? res.json() : Promise.reject('조회 실패'))
+            .then(post => {
+                postDiv.innerHTML = '';
+
+                const titleInput = document.createElement('input');
+                titleInput.className = 'edit-input';
+                titleInput.value = post.title;
+
+                const katInput = document.createElement('input');
+                katInput.className = 'edit-input';
+                katInput.value = post.kategorie;
+
+                const contentArea = document.createElement('textarea');
+                contentArea.className = 'edit-input';
+                contentArea.rows = 4;
+                contentArea.value = post.content;
+
+                const actionDiv = document.createElement('div');
+                actionDiv.className = 'edit-actions';
+                const saveBtn = document.createElement('button');
+                saveBtn.textContent = '저장';
+                saveBtn.addEventListener('click', () =>
+                    saveEdit(id, titleInput.value.trim(), katInput.value.trim(), contentArea.value.trim())
+                );
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = '취소';
+                cancelBtn.addEventListener('click', fetchAndRenderPosts);
+                actionDiv.append(saveBtn, cancelBtn);
+
+                postDiv.append(titleInput, katInput, contentArea, actionDiv);
+            })
+            .catch(err => {
+                console.error(err);
+                alert('게시글 조회 중 오류가 발생했습니다.');
+            });
+    }
+
+    // 7) 수정 저장 (PUT)
+    async function saveEdit(id, newTitle, newKategori, newContent) {
+        if (!newTitle) { alert('제목을 입력하세요.'); return; }
+        try {
+            const res = await fetch(`/api/posts/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle, kategorie: newKategori, content: newContent })
+            });
+            if (!res.ok) throw new Error('수정 실패');
+            await fetchAndRenderPosts();
+        } catch (err) {
+            console.error(err);
+            alert('게시글 수정 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 8) 초기 로드
+    window.onload = fetchAndRenderPosts;
+    </script>
+</body>
+</html>
