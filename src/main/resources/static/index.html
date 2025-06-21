@@ -76,9 +76,8 @@
         try {
             const res = await fetch('/api/posts');
             if (!res.ok) throw new Error('게시글을 불러오지 못했습니다.');
-			console.log(posts); //로그 출력
             const posts = await res.json();
-			console.log(posts); //로그 출력
+			//console.log(posts); //로그 출력
             renderPosts(posts);
         } catch (err) {
             console.error(err);
@@ -95,17 +94,24 @@
             postDiv.dataset.id = post.id;
 
             const titleEl = document.createElement('h5');
-            titleEl.textContent = post.title;
+            titleEl.textContent = `타이틀 : ${post.title}`;
+			titleEl.style.margin = '2px 0'; // 위아래 4px, 좌우 0
+			
             const kategorieEl = document.createElement('h5');
             kategorieEl.textContent = `분류: ${post.kategorie}`;
+			kategorieEl.style.margin = '2px 0'; // 위아래 4px, 좌우 0
+			
             const contentEl = document.createElement('p');
-            contentEl.textContent = post.content;
+            contentEl.textContent = `내용 : ${post.content}`;
+			contentEl.style.margin = '2px 0'; // 위아래 4px, 좌우 0
 
             const btnGroup = document.createElement('div');
             btnGroup.className = 'btn-group';
+			
             const editBtn = document.createElement('button');
             editBtn.textContent = '수정';
             editBtn.addEventListener('click', () => openEditForm(post.id));
+			
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = '삭제';
             deleteBtn.addEventListener('click', () => deletePost(post.id));
@@ -164,6 +170,7 @@
         }
 
         const postDiv = document.querySelector(`.post[data-id="${id}"]`);
+		
         if (!postDiv) return;
 
         fetch(`/api/posts/${id}`)
