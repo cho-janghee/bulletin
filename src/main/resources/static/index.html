@@ -162,21 +162,22 @@
     }
 
     // 6) 수정 폼 열기
+    let editRequest = 0;
     function openEditForm(id) {
-        const existing = document.querySelector('.post .edit-wrapper');
-        if (existing) {
-            existing.remove();
-            fetchAndRenderPosts();
-        }
-
         const postDiv = document.querySelector(`.post[data-id="${id}"]`);
 		
         if (!postDiv) return;
+        const request = ++editRequest;
 
         fetch(`/api/posts/${id}`)
             .then(res => res.ok ? res.json() : Promise.reject('조회 실패'))
             .then(post => {
-                postDiv.innerHTML = '';
+                if (request !== editRequest || !postDiv.isConnected) return;
+                document.querySelector('.edit-wrapper .cancel-edit')?.click();
+
+                const display = [...postDiv.children];
+                const editWrapper = document.createElement('div');
+                editWrapper.className = 'edit-wrapper';
 
                 const titleInput = document.createElement('input');
                 titleInput.className = 'edit-input';
@@ -200,12 +201,17 @@
                 );
                 const cancelBtn = document.createElement('button');
                 cancelBtn.textContent = '취소';
-                cancelBtn.addEventListener('click', fetchAndRenderPosts);
+                cancelBtn.className = 'cancel-edit';
+                cancelBtn.addEventListener('click', () => {
+                    postDiv.replaceChildren(...display);
+                });
                 actionDiv.append(saveBtn, cancelBtn);
 
-                postDiv.append(titleInput, katInput, contentArea, actionDiv);
+                editWrapper.append(titleInput, katInput, contentArea, actionDiv);
+                postDiv.replaceChildren(editWrapper);
             })
             .catch(err => {
+                if (request !== editRequest || !postDiv.isConnected) return;
                 console.error(err);
                 alert('게시글 조회 중 오류가 발생했습니다.');
             });
@@ -214,6 +220,7 @@
     // 7) 수정 저장 (PUT)
     async function saveEdit(id, newTitle, newKategori, newContent) {
         if (!newTitle) { alert('제목을 입력하세요.'); return; }
+        if (!newKategori) { alert('분류를 입력하세요.'); return; }
         try {
             const res = await fetch(`/api/posts/${id}`, {
                 method: 'PUT',
